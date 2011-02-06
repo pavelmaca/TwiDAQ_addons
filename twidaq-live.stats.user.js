@@ -115,7 +115,7 @@ var twidaq_ls = {
 	clearId: function(id){
 		this.DB.transaction(function (tx) {
 			tx.executeSql('DELETE FROM `stats` WHERE `id` = ? ', [id]);
-			console.log("deleting");
+			//console.log("deleting");
 		});
 	},
 
@@ -182,7 +182,7 @@ var twidaq_ls = {
 		var shares;
 		
 		var idRegEx = /^\/account\/buy-shares\?commodity=([0-9]+)/i;
-		console.log(tr);
+		//console.log(tr);
 		
 		var link = tr.find("td.mini-pill li a.cta.pill-buy").attr("href");
 		id = link.match(idRegEx)[1];
