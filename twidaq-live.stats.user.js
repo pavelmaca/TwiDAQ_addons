@@ -1,6 +1,7 @@
 // ==UserScript==
 // @name           TwiDAQ Live Stats
 // @author         Pavel Máca
+// @version        1.1
 // @namespace      twidaq
 // @description    Creating live statistic for twidaq.com in Google Chrome
 // @include        http://twidaq.com/account/my-portfolio/*
