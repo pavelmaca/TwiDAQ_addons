@@ -1,8 +1,9 @@
 // ==UserScript==
 // @name           TwiDAQ Custom Buy
-// @author         Pavel Máca
+// @author         Pavel MÃ¡ca
+// @version        1.1
 // @namespace      twidaq
-// @description    Enable better interface for buying and selling shares
+// @description    Enable better interface for buying and selling shares on twidaq.com
 // @include        http://twidaq.com/account/buy-shares?commodity=*
 // @include        http://twidaq.com/account/sell-shares?commodity=*
 // ==/UserScript==
@@ -235,7 +236,4 @@ $(document).ready(function(){
 	$("input[type=radio]").click(function(){
 		$("#twidaq_cb_slider").hide();
 	});
-	
-	
-	
 });
