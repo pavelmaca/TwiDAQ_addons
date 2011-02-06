@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name           TwiDAQ Live Stats
-// @author         Pavel Máca
+// @author         Pavel MÃ¡ca
 // @namespace      twidaq
 // @description    Creating live statistic for twidaq.com in Google Chrome
 // @include        http://twidaq.com/account/my-portfolio/*
@@ -182,6 +182,7 @@ var twidaq_ls = {
 		var shares;
 		
 		var idRegEx = /^\/account\/buy-shares\?commodity=([0-9]+)/i;
+		console.log(tr);
 		
 		var link = tr.find("td.mini-pill li a.cta.pill-buy").attr("href");
 		id = link.match(idRegEx)[1];
@@ -229,9 +230,8 @@ var twidaq_ls = {
 		//console.log("rendering..");
 		
 		var newTr = $("<tr/>").attr({
-			"id": "liveStatsTr-"+id,
-			"class": "liveStatsTr"
-		}).append(
+			"id": "liveStatsTr-"+id
+		}).addClass("liveStatsTr").append(
 			$("<td/>").attr({
 				colspan: 6
 			})
@@ -325,7 +325,7 @@ var twidaq_ls = {
 				var time = parseTime(timeline[first].time - timeline[row].time);
 				var proc = roundNumber((timeline[first].position - timeline[row].position),2);
 				
-				info.append($("<tr/>")
+				info.append($("<tr/>").addClass("liveStatsTr")
 					.append($("<td/>")
 						.css({"padding": 2})
 						.text(time)
@@ -445,7 +445,8 @@ $(document).ready(function(){
 		}).text("Update").click(function(){
 			if(updated === false){
 				//console.log("updating...");
-				$("#main-content-cms #main-copy table.stock-data tr:not(.liveStatsTr)").each(function(){
+				$("#main-content-cms #main-copy table.stock-data tr.liveStatsTr").remove();
+				$("#main-content-cms #main-copy table.stock-data tr:not(:first,.liveStatsTr)").each(function(){
 					twidaq_ls.grabData($(this));
 				});
 				updated = true;
@@ -454,7 +455,7 @@ $(document).ready(function(){
 			}
 		});
 		
-		$("#main-content-cms #main-copy table.stock-data tr:not(:first)").each(function(){
+		$("#main-content-cms #main-copy table.stock-data tr:not(:first,.liveStatsTr)").each(function(){
 			twidaq_ls.init($(this));
 		});
 		
