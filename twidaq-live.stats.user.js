@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name           TwiDAQ Live Stats
 // @author         Pavel Máca
-// @version        1.1
+// @version        1.2
 // @namespace      twidaq
 // @description    Creating live statistic for twidaq.com in Google Chrome
 // @include        http://twidaq.com/account/my-portfolio/*
@@ -188,7 +188,9 @@ var twidaq_ls = {
 		var link = tr.find("td.mini-pill li a.cta.pill-buy").attr("href");
 		id = link.match(idRegEx)[1];
 		
-		position = tr.find("td:nth-child(5) p.value").text().match(/^([+\-0-9.]+)%$/)[1];
+		position = tr.find("td:nth-child(5) p.value").text().match(/^([+\-0-9.,]+)%$/)[1];
+		position.replace(/,/, "");
+		
 		position = parseFloat(position);
 
 		shares = parseFloat(tr.find("td:nth-child(3) p.value").text());
