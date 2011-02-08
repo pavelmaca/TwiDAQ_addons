@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name           TwiDAQ Live Stats
 // @author         Pavel Máca
-// @version        1.2
+// @license        MIT
+// @version        1.3
 // @namespace      twidaq
 // @description    Creating live statistic for twidaq.com in Google Chrome
 // @include        http://twidaq.com/account/my-portfolio/*
@@ -97,13 +98,16 @@ function parseTime(milisec){
 
 var twidaq_ls = {
 	
-	TIME_LIMIT: 12000, //milisecunds
+	TIME_LIMIT: 60000, //milisecunds => 1min
 	
+	TR_CLASS: "liveStatsTr", //class for all generated <tr>
+		
 	DB : null,
 	
 	labels: [],
 	data: [],
 	
+	/** Database */
 	loadConection: function(){
 		this.DB = openDatabase('twiDAQ_stats', '1.0', 'TwiDAQ Statistics', 10 * 1024 * 1024);
 		
@@ -116,12 +120,11 @@ var twidaq_ls = {
 	clearId: function(id){
 		this.DB.transaction(function (tx) {
 			tx.executeSql('DELETE FROM `stats` WHERE `id` = ? ', [id]);
-			//console.log("deleting");
 		});
 	},
 
 	
-	insertPosition: function(id, position, shares){
+	insertPosition: function(id, position, shares, showAfter){
 		var date = new Date();
 		this.DB.transaction(function (tx) {
 			tx.executeSql('INSERT OR IGNORE INTO `stats` VALUES (?, ?, ?, ?)', [id, position, date.getTime(), shares],  function (tx, results) {
@@ -130,11 +133,19 @@ var twidaq_ls = {
 				}/*else{
 					twidaq_ls.handleError("inserted id: "+id);
 				}*/
+				var tr = $("#"+twidaq_ls.TR_CLASS+"-"+id);
+				if(showAfter === true){
+					var prevTr = tr.prev();
+					tr.remove();
+					twidaq_ls.loadPositions(id, prevTr);
+				}else{
+					tr.remove();
+				}
 			});
 		});
 	},
 	
-	tryInsertPosition: function(id, position, shares){
+	tryInsertPosition: function(id, position, shares, showAfter){
 		this.DB.transaction(function (tx) {
 			tx.executeSql('SELECT `time`, `shares`  FROM `stats` WHERE `id` = ? ORDER BY `time` DESC LIMIT 1', [id], function (tx, results) {
 								
@@ -152,13 +163,13 @@ var twidaq_ls = {
 				
 				// vloží jen po uplynutí limitu
 				if(time <= (now.getTime()- twidaq_ls.TIME_LIMIT) ){
-					twidaq_ls.insertPosition(id, position, shares);
+					twidaq_ls.insertPosition(id, position, shares, showAfter);					
 				}
 			})
 		});
 	},
 	
-	loadPositions: function(id, tr, e){
+	loadPositions: function(id, tr){
 		this.DB.transaction(function (tx) {
 			tx.executeSql('SELECT * FROM `stats` WHERE `id` = ? ORDER BY `time` DESC LIMIT 50', [id], function (tx, results) {
 				//callback funkce, která přebírá výsledky
@@ -168,80 +179,152 @@ var twidaq_ls = {
 					timeline[i] = results.rows.item(i);
 				}
 				
-				twidaq_ls.renderData(id, tr, timeline, e);
+				twidaq_ls.renderTr(id, tr, timeline);
 			})
 		});
 	},
 	
 	handleError: function(flag){
-		console.log(flag);
+		//console.log(flag);
 	},
 	
-	grabData: function(tr){
-		var id;
-		var position;
-		var shares;
-		
-		var idRegEx = /^\/account\/buy-shares\?commodity=([0-9]+)/i;
-		//console.log(tr);
-		
-		var link = tr.find("td.mini-pill li a.cta.pill-buy").attr("href");
-		id = link.match(idRegEx)[1];
-		
-		position = tr.find("td:nth-child(5) p.value").text().match(/^([+\-0-9.,]+)%$/)[1];
-		position.replace(/,/, "");
-		
-		position = parseFloat(position);
-
-		shares = parseFloat(tr.find("td:nth-child(3) p.value").text());
+	/** Init */
 	
-		twidaq_ls.tryInsertPosition(id, position, shares);
+	aplyConfig: function(){
+		$.jqplot.config.enablePlugins = true; 
+	
+		$(".jqplot-highlighter-tooltip").css({
+			"white-space": "nowrap",
+			"color": "white",
+			"width": "100px"
+		});
 		
-
+		$(".jqplot-axis-tick").css({
+			"white-space": "nowrap",
+			"width": "50px"
+		});
 	},
 	
-	init:function(tr){
-		var id;
-		var idRegEx = /^\/account\/buy-shares\?commodity=([0-9]+)/i;
-		
-		var link = tr.find("td.mini-pill li a.cta.pill-buy").attr("href");
-		id = link.match(idRegEx)[1];
+
+	
+	initStats: function(){
+		$("#main-content-cms #main-copy table.stock-data tr:not(:first,.liveStatsTr)").each(function(){
+			twidaq_ls.initTr($(this));
+		});		
+	},
+	
+	initTr: function(tr){
+		var id = twidaq_ls.getIdFromTr(tr);
 		tr.find("td:nth-child(5)").css({
 			"cursor": "pointer"
 		}).click(function(){
 			if($("#liveStatsTr-"+id).is(":visible")){
-				$("#liveStatsTr-"+id).css({display: "none"});
+				$("#"+twidaq_ls.TR_CLASS+"-"+id).css({display: "none"});
 			}else{
 				twidaq_ls.loadPositions(id, tr);
 			}
 		});
 	},
 	
-	renderData: function(id, tr, timeline, e){
-		this.draw(id, tr, timeline, e);
+	initMainButtons: function(){
+		var bCss = {
+			"border-radius": "25px",
+			"text-shadow": "0 -1px 0 black",
+			"background-color": "#1D7E1D",
+			"background-image": "url(/images/pill_buy_bg.png)",
+			"border-color": "#6C0000",
+			"padding": "4px",
+			"padding-left": "8px",
+			"padding-right": "8px",
+			"color": "white",
+			"font-size": "12px",
+			"cursor": "pointer",
+			"margin-botton": "7px",
+			"letter-spacing": "2px",
+			"margin-left": "10px"
+		};
+		
+		var updateB = $("<a/>").css(bCss).text("Update all").click(function(){
+			twidaq_ls.updateAll();
+		});
+		
+		
+		var unCollapseB = $("<a/>").css(bCss).text("Uncollapse all").click(function(){
+			$("#main-content-cms #main-copy table.stock-data tr:not(:first,."+twidaq_ls.TR_CLASS+")").each(function(){
+				var id = twidaq_ls.getIdFromTr($(this));
+				
+				var trId = twidaq_ls.TR_CLASS+"-"+id;
+				
+				if($("#"+trId).is(":visible")) return;
+				
+				if($("#"+trId).length >= 1){
+					$("#"+trId).show();
+				}else{
+					twidaq_ls.loadPositions(id, $(this));
+				}
+			});
+		});
+				
+		var collapseB = $("<a/>").css(bCss).text("Collapse all").click(function(){
+			$("#main-content-cms #main-copy table.stock-data tr:not(:first,."+twidaq_ls.TR_CLASS+"):visible").each(function(){
+				var id = twidaq_ls.getIdFromTr($(this));
+				
+				$("#"+twidaq_ls.TR_CLASS+"-"+id).css({display: "none"});
+			});
+		});
+		
+		
+		$("#page-title").append(updateB).append(unCollapseB).append(collapseB);
 	},
 	
-	draw: function(id, tr, timeline, e){
-
-		var jId = "liveStats-"+id;
+	/** Main */
+	
+	getIdFromTr: function(tr){
+		var idRegEx = /^\/account\/buy-shares\?commodity=([0-9]+)/i;
 		
-		if($("#liveStatsTr-"+id).length >= 1){
-			//console.log("exists..");
-			$("#liveStatsTr-"+id).show();
+		var link = tr.find("td.mini-pill li a.cta.pill-buy").attr("href");
+		return link.match(idRegEx)[1];
+	},
+	
+	updateAll: function(){
+		$("#main-content-cms #main-copy table.stock-data tr:not(:first,."+twidaq_ls.TR_CLASS+")").each(function(){
+				twidaq_ls.updateTr($(this), false);
+		});
+	},
+		
+	updateTr: function(tr, showAfter){
+		var id, position, shares;
+		
+		id = twidaq_ls.getIdFromTr(tr);
+		
+		position = tr.find("td:nth-child(5) p.value").text().match(/^([+\-0-9.,]+)%$/)[1];
+		position.replace(/,/, ""); //  1,000.10 => 1000.10
+		
+		position = parseFloat(position);
+
+		shares = parseFloat(tr.find("td:nth-child(3) p.value").text());
+	
+		twidaq_ls.tryInsertPosition(id, position, shares, showAfter);
+	},
+		
+	renderTr: function(id, tr, timeline){		
+		var trId = twidaq_ls.TR_CLASS+"-"+id;
+		var jqPlotId = "liveStats-"+id;
+		
+		if($("#"+trId).length >= 1){
+			$("#"+trId).show();
 			return;
 		}
-		//console.log("rendering..");
-		
+				
 		var newTr = $("<tr/>").attr({
-			"id": "liveStatsTr-"+id
-		}).addClass("liveStatsTr").append(
+			"id": trId
+		}).addClass(twidaq_ls.TR_CLASS).append(
 			$("<td/>").attr({
 				colspan: 6
 			})
 		);
 		
-		
-		var obal = $("<div/>").css({
+		var jPlotCover = $("<div/>").css({
 			position: "relativ",
 			margin: "4px",
 			padding: "4px",
@@ -249,31 +332,28 @@ var twidaq_ls = {
 			height: "120px",
 			"float": "left",
 			border: "1px solid #0F3F6A"
-			
 		}).attr({"class": "stock-data"});
 		
-		var div = $("<div/>").attr({
-			"id": jId,
+		var jPlot = $("<div/>").attr({
+			"id": jqPlotId,
 			"class": "liveStats"
 		}).css({
 			width: "310px",
 			height: "120px"
 		});
 		
+		jPlotCover.append(jPlot);
+		newTr.find("td").append(jPlotCover);
+		tr.after(newTr);
+		
 		var info = $("<table/>").css({
 			"margin-top": "8px",
 			"position": "relative",
 			"left": "20px"
 		});
-
-		
-		obal.append(div);
-		newTr.find("td").append(obal);
-		tr.after(newTr);
-		
 		
 		var rightPanel = $("<div/>").css({
-			"float": "right",
+			"float": "right"
 		});
 		var reset = $("<a/>").css({
 			"border-radius": "25px",
@@ -289,22 +369,55 @@ var twidaq_ls = {
 			"cursor": "pointer",
 			"margin-botton": "7px"
 		}).text("Reset").click(function(){
-			if(confirm('Delete this item from database?')){
+			if(confirm('Delete stats for this item from database?')){
 				twidaq_ls.clearId(id);
-				$("#liveStatsTr-"+id).remove();
+				$("#"+trId).remove();
 			}
 		});
 		
-		var date = new Date(timeline[0].time);
+		rightPanel.append(reset);
 		
-		var lastupadte = $("<p/>").html( "<small>Last update: <br/>"+date.getHours()+":"+date.getMinutes()+":"+date.getSeconds()+"</small>");
+		var update = $("<a/>").css({
+			"border-radius": "25px",
+			"text-shadow": "0 -1px 0 black",
+			"background-color": "#C40404",
+			"background-image": "url(/images/pill_buy_bg.png)",
+			"border-color": "#6C0000",
+			"padding": "4px",
+			"padding-left": "8px",
+			"padding-right": "8px",
+			"color": "white",
+			"font-size": ".7em",
+			"cursor": "pointer",
+			"margin-botton": "7px"
+		}).text("Update").click(function(){
+			twidaq_ls.updateTr($(this).closest("tr").prev(), true);
+		});
 		
-		rightPanel.append(reset).append(lastupadte);
-		
-		$("#liveStatsTr-"+id+" td").append(rightPanel);
-				
-		var positions = [];
+		if(!timeline[0]){
+			$("#"+trId+" td").append(rightPanel.append(update));
+			return;
+		} 
 	
+		var date = new Date(timeline[0].time);
+		var dateH = date.getHours();
+		var dateM = date.getMinutes();
+		var dateS = date.getSeconds();
+
+		var lastupadte = $("<div/>").html("<br/><small>Last update: <br/>"
+			+(dateH > 9 ? dateH : "0"+dateH)+":"
+			+(dateM > 9 ? dateM : "0"+dateM)+":"
+			+(dateS > 9 ? dateS : "0"+dateS)+"</small>"
+			);
+		
+		rightPanel.append(lastupadte);
+		
+		rightPanel.append(update)
+		$("#"+trId+" td").append(rightPanel);
+		
+				
+		/** fill array */
+		var positions = [];
 		var first = null;
 		for(var row in timeline){
 			positions.push([timeline[row].time, timeline[row].position]);
@@ -328,7 +441,7 @@ var twidaq_ls = {
 				var time = parseTime(timeline[first].time - timeline[row].time);
 				var proc = roundNumber((timeline[first].position - timeline[row].position),2);
 				
-				info.append($("<tr/>").addClass("liveStatsTr")
+				info.append($("<tr/>").addClass(twidaq_ls.TR_CLASS)
 					.append($("<td/>")
 						.css({"padding": 2})
 						.text(time)
@@ -340,14 +453,12 @@ var twidaq_ls = {
 					)
 				)
 			}
-			
-			prev = row;
 		}
 		
 		positions.reverse();
 					
-		$.jqplot(jId, [positions], {
-		//	title: tr.find("td:nth-child(2) h4 a").text(),
+		/** setting up jqPlot graph */
+		$.jqplot(jqPlotId, [positions], {
 			grid: {
 				drawGridLines: false,   
 				background:"#072340",
@@ -399,68 +510,24 @@ var twidaq_ls = {
 				tooltipOffset: 2,       // pixel offset of tooltip from the highlight.
 				tooltipAxes: 'both',    // which axis values to display in the tooltip, x, y or both.
 				tooltipSeparator: ': ',  // separator between values in the tooltip.
-				useAxesFormatters: true, // use the same format string and formatters as used in the axes to
-				// display values in the tooltip.
-				//tooltipFormatString: '%+.2f%%' // sprintf format string for the tooltip.  only used if
-			// useAxesFormatters is false.  Will use sprintf formatter with
-			// this string, not the axes formatters.
+				useAxesFormatters: true // use the same format string and formatters as used in the axes to
 			}
 		});
 		
 		$("#liveStatsTr-"+id+" td").append(info);
 	}
-
+	
 }
 
 
 $(document).ready(function(){
+	//load database connection
 	twidaq_ls.loadConection();
 	
-	$.jqplot.config.enablePlugins = true; 
+	//aply css and other settings
+	twidaq_ls.aplyConfig();
 	
-	$(".jqplot-highlighter-tooltip").css({
-		"white-space": "nowrap",
-		"color": "white",
-		"width": "100px"
-	});
-		
-	$(".jqplot-axis-tick").css({
-		"white-space": "nowrap",
-		"width": "50px"
-	});
+	twidaq_ls.initMainButtons();
 	
-	var updated = false;
-	var updateData = $("<a/>").css({
-			"border-radius": "25px",
-			"text-shadow": "0 -1px 0 black",
-			"background-color": "#1D7E1D",
-			"background-image": "url(/images/pill_buy_bg.png)",
-			"border-color": "#6C0000",
-			"padding": "4px",
-			"padding-left": "8px",
-			"padding-right": "8px",
-			"color": "white",
-			"font-size": "12px",
-			"cursor": "pointer",
-			"margin-botton": "7px",
-			"letter-spacing": "3px",
-			"margin-left": "10px"
-		}).text("Update").click(function(){
-			if(updated === false){
-				//console.log("updating...");
-				$("#main-content-cms #main-copy table.stock-data tr.liveStatsTr").remove();
-				$("#main-content-cms #main-copy table.stock-data tr:not(:first,.liveStatsTr)").each(function(){
-					twidaq_ls.grabData($(this));
-				});
-				updated = true;
-			}else{
-				alert("Already up to date.")
-			}
-		});
-		
-		$("#main-content-cms #main-copy table.stock-data tr:not(:first,.liveStatsTr)").each(function(){
-			twidaq_ls.init($(this));
-		});
-		
-		$("#page-title").append(updateData);
+	twidaq_ls.initStats();
 });
